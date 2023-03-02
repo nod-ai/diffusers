@@ -206,7 +206,6 @@ class PipelineTesterMixin:
         if self.pipeline_class.__name__ in [
             "CycleDiffusionPipeline",
             "RePaintPipeline",
-            "StableDiffusionPix2PixZeroPipeline",
         ]:
             # RePaint can hardly be made deterministic since the scheduler is currently always
             # nondeterministic
