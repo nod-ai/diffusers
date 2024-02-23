@@ -223,7 +223,7 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         if self.step_index is None:
             self._init_step_index(timestep)
 
-        sigma = self.sigmas[self.step_index]
+        sigma = self.sigmas.index_select(0, self.step_index)
         sample = sample / ((sigma**2 + 1) ** 0.5)
 
         self.is_scale_input_called = True
@@ -344,18 +344,24 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         if isinstance(timestep, torch.Tensor):
             timestep = timestep.to(self.timesteps.device)
 
-        index_candidates = (self.timesteps == timestep).nonzero()
+        index_candidates = torch.nonzero(self.timesteps == timestep)
 
         # The sigma index that is taken for the **very** first `step`
         # is always the second index (or the last index if there is only 1)
         # This way we can ensure we don't accidentally skip a sigma in
         # case we start in the middle of the denoising schedule (e.g. for image-to-image)
-        if len(index_candidates) > 1:
-            step_index = index_candidates[1]
-        else:
-            step_index = index_candidates[0]
 
-        self._step_index = step_index.item()
+        # if len(index_candidates) > 1:
+        #     step_index = index_candidates[1]
+        # else:
+        #     step_index = index_candidates[0]
+
+        step_index = torch.where(torch.scalar_tensor(torch.numel(index_candidates)) > 1,
+                                 index_candidates.index_select(0, torch.scalar_tensor(1)),
+                                 index_candidates.index_select(0, torch.scalar_tensor(0)))
+
+        step_index = torch.squeeze(step_index)
+        self._step_index = step_index
 
     def step(
         self,
@@ -419,9 +425,13 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         if self.step_index is None:
             self._init_step_index(timestep)
 
-        sigma = self.sigmas[self.step_index]
+        sigma = self.sigmas.index_select(0, self.step_index)
 
-        gamma = min(s_churn / (len(self.sigmas) - 1), 2**0.5 - 1) if s_tmin <= sigma <= s_tmax else 0.0
+        condition = s_tmin <= sigma
+        condition1 = sigma <= s_tmax
+        gamma = torch.where(condition & condition1,
+                    torch.minimum(torch.tensor(s_churn / (len(self.sigmas) - 1)), torch.tensor(2**0.5 - 1)),
+                    torch.tensor(0.0))
 
         noise = randn_tensor(
             model_output.shape, dtype=model_output.dtype, device=model_output.device, generator=generator
@@ -430,8 +440,7 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         eps = noise * s_noise
         sigma_hat = sigma * (gamma + 1)
 
-        if gamma > 0:
-            sample = sample + eps * (sigma_hat**2 - sigma**2) ** 0.5
+        sample = torch.where(gamma > 0, sample + eps * (sigma_hat**2 - sigma**2) ** 0.5, sample)
 
         # 1. compute predicted original sample (x_0) from sigma-scaled predicted noise
         # NOTE: "original_sample" should not be an expected prediction_type but is left in for
@@ -451,7 +460,7 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         # 2. Convert to an ODE derivative
         derivative = (sample - pred_original_sample) / sigma_hat
 
-        dt = self.sigmas[self.step_index + 1] - sigma_hat
+        dt = self.sigmas.index_select(0, self.step_index + 1) - sigma_hat
 
         prev_sample = sample + derivative * dt
 
