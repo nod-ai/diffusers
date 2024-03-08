@@ -344,23 +344,15 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         if isinstance(timestep, torch.Tensor):
             timestep = timestep.to(self.timesteps.device)
 
-        index_candidates = torch.nonzero(self.timesteps == timestep)
-
         # The sigma index that is taken for the **very** first `step`
         # is always the second index (or the last index if there is only 1)
         # This way we can ensure we don't accidentally skip a sigma in
         # case we start in the middle of the denoising schedule (e.g. for image-to-image)
 
-        # if len(index_candidates) > 1:
-        #     step_index = index_candidates[1]
-        # else:
-        #     step_index = index_candidates[0]
-
-        step_index = torch.where(torch.scalar_tensor(torch.numel(index_candidates)) > 1,
-                                 index_candidates.index_select(0, torch.scalar_tensor(1)),
-                                 index_candidates.index_select(0, torch.scalar_tensor(0)))
-
-        step_index = torch.squeeze(step_index)
+        eq = torch.eq(self.timesteps, timestep)
+        index_candidates = torch.where(eq)[0]
+        index = torch.where(torch.scalar_tensor(torch.numel(index_candidates)) > 1, 1, 0)
+        step_index = index_candidates.index_select(0, index)
         self._step_index = step_index
 
     def step(
