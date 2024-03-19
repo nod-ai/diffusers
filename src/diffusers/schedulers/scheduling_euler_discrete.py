@@ -352,9 +352,10 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         # case we start in the middle of the denoising schedule (e.g. for image-to-image)
 
         eq = torch.eq(self.timesteps, timestep)
-        index_candidates = torch.where(eq)[0]
-        # index_candidates = torch.where(self.timesteps == timestep)[0]
-        # index = torch.where(torch.scalar_tensor(torch.numel(index_candidates)) > 1, 1, 0)
+        eq = eq.int()
+        index_candidates = torch.argmax(eq)
+        index_candidates = index_candidates.unsqueeze(0)
+
         a = torch.numel(index_candidates)
         cond = torch.scalar_tensor(a)
         one = torch.scalar_tensor(1, dtype=torch.int64)
@@ -464,6 +465,7 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         dt = self.sigmas.index_select(0, self.step_index + 1) - sigma_hat
 
         prev_sample = sample + derivative * dt
+        prev_sample = prev_sample.to(model_output.dtype)
 
         # upon completion increase step index by one
         self._step_index += 1
