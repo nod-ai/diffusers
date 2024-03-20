@@ -427,6 +427,8 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         if self.step_index is None:
             self._init_step_index(timestep)
 
+        sample = sample.to(torch.float32)
+
         sigma = self.sigmas.index_select(0, self.step_index)
 
         condition = s_tmin <= sigma
