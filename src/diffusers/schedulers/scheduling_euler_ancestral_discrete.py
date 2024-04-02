@@ -199,12 +199,14 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
             `torch.FloatTensor`:
                 A scaled input sample.
         """
-
+        dtype = sample.dtype
         if self.step_index is None:
             self._init_step_index(timestep)
 
-        sigma = self.sigmas[self.step_index]
+        sigma = self.sigmas.index_select(0, self.step_index)
         sample = sample / ((sigma**2 + 1) ** 0.5)
+        sample = sample.to(dtype)
+
         self.is_scale_input_called = True
         return sample
 
@@ -255,18 +257,24 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
         if isinstance(timestep, torch.Tensor):
             timestep = timestep.to(self.timesteps.device)
 
-        index_candidates = (self.timesteps == timestep).nonzero()
-
         # The sigma index that is taken for the **very** first `step`
         # is always the second index (or the last index if there is only 1)
         # This way we can ensure we don't accidentally skip a sigma in
         # case we start in the middle of the denoising schedule (e.g. for image-to-image)
-        if len(index_candidates) > 1:
-            step_index = index_candidates[1]
-        else:
-            step_index = index_candidates[0]
 
-        self._step_index = step_index.item()
+        eq = torch.eq(self.timesteps, timestep)
+        eq = eq.int()
+        index_candidates = torch.argmax(eq)
+        index_candidates = index_candidates.unsqueeze(0)
+
+        a = torch.numel(index_candidates)
+        cond = torch.scalar_tensor(a)
+        one = torch.scalar_tensor(1, dtype=torch.int64)
+        zero = torch.scalar_tensor(0, dtype=torch.int64)
+        index = torch.where(cond > 1, one, zero)
+        index = index.unsqueeze(0)
+        step_index = index_candidates.index_select(0, index)
+        self._step_index = step_index
 
     def step(
         self,
@@ -323,7 +331,9 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
         if self.step_index is None:
             self._init_step_index(timestep)
 
-        sigma = self.sigmas[self.step_index]
+        sample = sample.to(torch.float32)
+
+        sigma = self.sigmas.index_select(0, self.step_index)
 
         # 1. compute predicted original sample (x_0) from sigma-scaled predicted noise
         if self.config.prediction_type == "epsilon":
@@ -338,8 +348,8 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
                 f"prediction_type given as {self.config.prediction_type} must be one of `epsilon`, or `v_prediction`"
             )
 
-        sigma_from = self.sigmas[self.step_index]
-        sigma_to = self.sigmas[self.step_index + 1]
+        sigma_from = self.sigmas.index_select(0, self.step_index)
+        sigma_to = self.sigmas.index_select(0, self.step_index + 1)
         sigma_up = (sigma_to**2 * (sigma_from**2 - sigma_to**2) / sigma_from**2) ** 0.5
         sigma_down = (sigma_to**2 - sigma_up**2) ** 0.5
 
@@ -354,6 +364,7 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
         noise = randn_tensor(model_output.shape, dtype=model_output.dtype, device=device, generator=generator)
 
         prev_sample = prev_sample + noise * sigma_up
+        prev_sample = prev_sample.to(model_output.dtype)
 
         # upon completion increase step index by one
         self._step_index += 1
