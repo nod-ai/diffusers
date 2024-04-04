@@ -71,13 +71,14 @@ def randn_tensor(
 
     if isinstance(generator, list):
         shape = (1,) + shape[1:]
+        # TODO: add support for torch.randn fx tracing with generator
         latents = [
-            torch.randn(shape, generator=generator[i], device=rand_device, dtype=dtype, layout=layout)
+            torch.randn_like(torch.ones(shape), dtype=dtype, layout=layout, device=rand_device)
             for i in range(batch_size)
         ]
         latents = torch.cat(latents, dim=0).to(device)
     else:
-        latents = torch.randn(shape, generator=generator, device=rand_device, dtype=dtype, layout=layout).to(device)
+        latents = torch.randn_like(torch.ones(shape), dtype=dtype, layout=layout, device=rand_device).to(device)
 
     return latents
 
