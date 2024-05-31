@@ -13,6 +13,7 @@ specific language governing permissions and limitations under the License.
 # Marigold Pipelines for Computer Vision Tasks
 
 [Marigold](../api/pipelines/marigold) is a novel diffusion-based dense prediction approach, and a set of pipelines for various computer vision tasks, such as monocular depth estimation.
+[Marigold](../api/pipelines/marigold) is a novel diffusion-based dense prediction approach, and a set of pipelines for various computer vision tasks, such as monocular depth estimation.
 
 This guide will show you how to use Marigold to obtain fast and high-quality predictions for images and videos.
 
@@ -415,7 +416,7 @@ image = diffusers.utils.load_image(
 
 pipe = diffusers.MarigoldDepthPipeline.from_pretrained(
     "prs-eth/marigold-depth-lcm-v1-0", torch_dtype=torch.float16, variant="fp16"
-).to(device)
+).to("cuda")
 
 depth_image = pipe(image, generator=generator).prediction
 depth_image = pipe.image_processor.visualize_depth(depth_image, color_map="binary")
@@ -423,10 +424,10 @@ depth_image[0].save("motorcycle_controlnet_depth.png")
 
 controlnet = diffusers.ControlNetModel.from_pretrained(
     "diffusers/controlnet-depth-sdxl-1.0", torch_dtype=torch.float16, variant="fp16"
-).to(device)
+).to("cuda")
 pipe = diffusers.StableDiffusionXLControlNetPipeline.from_pretrained(
     "SG161222/RealVisXL_V4.0", torch_dtype=torch.float16, variant="fp16", controlnet=controlnet
-).to(device)
+).to("cuda")
 pipe.scheduler = diffusers.DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, use_karras_sigmas=True)
 
 controlnet_out = pipe(
