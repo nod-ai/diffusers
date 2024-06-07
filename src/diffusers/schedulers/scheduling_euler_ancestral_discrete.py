@@ -329,9 +329,19 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
         # is always the second index (or the last index if there is only 1)
         # This way we can ensure we don't accidentally skip a sigma in
         # case we start in the middle of the denoising schedule (e.g. for image-to-image)
-        pos = 1 if len(indices) > 1 else 0
+        eq = torch.eq(schedule_timesteps, timestep)
+        eq = eq.int()
+        index_candidates = torch.argmax(eq)
+        index_candidates = index_candidates.unsqueeze(0)
 
-        return indices[pos].item()
+        a = torch.numel(index_candidates)
+        cond = torch.scalar_tensor(a)
+        one = torch.scalar_tensor(1, dtype=torch.int64)
+        zero = torch.scalar_tensor(0, dtype=torch.int64)
+        index = torch.where(cond > 1, one, zero)
+        index = index.unsqueeze(0)
+        step_index = index_candidates.index_select(0, index)
+        return step_index
 
     # Copied from diffusers.schedulers.scheduling_euler_discrete.EulerDiscreteScheduler._init_step_index
     def _init_step_index(self, timestep):
