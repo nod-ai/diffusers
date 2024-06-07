@@ -478,9 +478,19 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         # is always the second index (or the last index if there is only 1)
         # This way we can ensure we don't accidentally skip a sigma in
         # case we start in the middle of the denoising schedule (e.g. for image-to-image)
-        pos = 1 if len(indices) > 1 else 0
+        eq = torch.eq(schedule_timesteps, timestep)
+        eq = eq.int()
+        index_candidates = torch.argmax(eq)
+        index_candidates = index_candidates.unsqueeze(0)
 
-        return indices[pos].item()
+        a = torch.numel(index_candidates)
+        cond = torch.scalar_tensor(a)
+        one = torch.scalar_tensor(1, dtype=torch.int64)
+        zero = torch.scalar_tensor(0, dtype=torch.int64)
+        index = torch.where(cond > 1, one, zero)
+        index = index.unsqueeze(0)
+        step_index = index_candidates.index_select(0, index)
+        return step_index
 
     def _init_step_index(self, timestep):
         if self.begin_index is None:
@@ -551,9 +561,13 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         # Upcast to avoid precision issues when computing prev_sample
         sample = sample.to(torch.float32)
 
-        sigma = self.sigmas[self.step_index]
+        sigma = self.sigmas.index_select(0, self.step_index)
 
-        gamma = min(s_churn / (len(self.sigmas) - 1), 2**0.5 - 1) if s_tmin <= sigma <= s_tmax else 0.0
+        condition = s_tmin <= sigma
+        condition1 = sigma <= s_tmax
+        gamma = torch.where(condition & condition1,
+                    torch.minimum(torch.tensor(s_churn / (len(self.sigmas) - 1)), torch.tensor(2**0.5 - 1)),
+                    torch.tensor(0.0))
 
         noise = randn_tensor(
             model_output.shape, dtype=model_output.dtype, device=model_output.device, generator=generator
@@ -562,8 +576,7 @@ class EulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
         eps = noise * s_noise
         sigma_hat = sigma * (gamma + 1)
 
-        if gamma > 0:
-            sample = sample + eps * (sigma_hat**2 - sigma**2) ** 0.5
+        sample = torch.where(gamma > 0, sample + eps * (sigma_hat**2 - sigma**2) ** 0.5, sample)
 
         # 1. compute predicted original sample (x_0) from sigma-scaled predicted noise
         # NOTE: "original_sample" should not be an expected prediction_type but is left in for
