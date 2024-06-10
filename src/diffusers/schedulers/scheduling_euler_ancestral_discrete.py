@@ -23,7 +23,7 @@ from ..configuration_utils import ConfigMixin, register_to_config
 from ..utils import BaseOutput, logging
 from ..utils.torch_utils import randn_tensor
 from .scheduling_utils import KarrasDiffusionSchedulers, SchedulerMixin
-
+from shark_turbine.ops.iree import trace_tensor
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -401,7 +401,7 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
             )
 
         if self.step_index is None:
-            self._init_step_index(timestep)
+            self.index_for_timestep(timestep)
 
         sigma = self.sigmas[self.step_index]
 
@@ -435,8 +435,9 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
 
         device = model_output.device
         noise = randn_tensor(model_output.shape, dtype=model_output.dtype, device=device, generator=generator)
-
-        prev_sample = prev_sample + noise * sigma_up
+        noisecl = noise.clone()
+        trace_tensor("noise", noisecl[0,0])
+        prev_sample = prev_sample + noisecl * sigma_up
 
         # Cast sample back to model compatible dtype
         prev_sample = prev_sample.to(model_output.dtype)

@@ -35,6 +35,7 @@ from ..resnet import (
 )
 from ..transformers.dual_transformer_2d import DualTransformer2DModel
 from ..transformers.transformer_2d import Transformer2DModel
+import shark_turbine.ops.iree as iree_ops
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -1284,7 +1285,10 @@ class CrossAttnDownBlock2D(nn.Module):
                     return_dict=False,
                 )[0]
             else:
+                #iree_ops.trace_tensor(f"down_{i}_pre_resnet_sample", hidden_states[:,0,0,5])
                 hidden_states = resnet(hidden_states, temb)
+                #iree_ops.trace_tensor(f"down_{i}_post_resnet_sample", hidden_states[:,0,0,5])
+
                 hidden_states = attn(
                     hidden_states,
                     encoder_hidden_states=encoder_hidden_states,
@@ -1293,6 +1297,8 @@ class CrossAttnDownBlock2D(nn.Module):
                     encoder_attention_mask=encoder_attention_mask,
                     return_dict=False,
                 )[0]
+                #iree_ops.trace_tensor(f"down_{i}_post_attn_sample", hidden_states[:,0,0,5])
+
 
             # apply additional residuals to the output of the last pair of resnet and attention blocks
             if i == len(blocks) - 1 and additional_residuals is not None:

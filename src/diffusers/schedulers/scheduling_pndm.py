@@ -22,7 +22,7 @@ import torch
 
 from ..configuration_utils import ConfigMixin, register_to_config
 from .scheduling_utils import KarrasDiffusionSchedulers, SchedulerMixin, SchedulerOutput
-
+from shark_turbine.ops.iree import trace_tensor
 
 # Copied from diffusers.schedulers.scheduling_ddpm.betas_for_alpha_bar
 def betas_for_alpha_bar(
@@ -307,8 +307,9 @@ class PNDMScheduler(SchedulerMixin, ConfigMixin):
 
         # cur_sample should not be `None`
         cur_sample = self.cur_sample if self.cur_sample is not None else sample
-
+        
         prev_sample = self._get_prev_sample(cur_sample, timestep, prev_timestep, model_output)
+        
         self.counter += 1
 
         if not return_dict:
@@ -378,7 +379,6 @@ class PNDMScheduler(SchedulerMixin, ConfigMixin):
             model_output = (23 * self.ets[-1] - 16 * self.ets[-2] + 5 * self.ets[-3]) / 12
         else:
             model_output = (1 / 24) * (55 * self.ets[-1] - 59 * self.ets[-2] + 37 * self.ets[-3] - 9 * self.ets[-4])
-
         prev_sample = self._get_prev_sample(sample, timestep, prev_timestep, model_output)
         self.counter += 1
 
