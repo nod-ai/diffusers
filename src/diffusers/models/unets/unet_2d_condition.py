@@ -49,6 +49,7 @@ from .unet_2d_blocks import (
     get_mid_block,
     get_up_block,
 )
+import shark_turbine.ops.iree as iree_ops
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -1210,6 +1211,8 @@ class UNet2DConditionModel(
             is_adapter = True
 
         down_block_res_samples = (sample,)
+        #iree_ops.trace_tensor("pre_down_block_sample", sample[:,:,0,5])
+
         for downsample_block in self.down_blocks:
             if hasattr(downsample_block, "has_cross_attention") and downsample_block.has_cross_attention:
                 # For t2i-adapter CrossAttnDownBlock2D
@@ -1226,10 +1229,13 @@ class UNet2DConditionModel(
                     encoder_attention_mask=encoder_attention_mask,
                     **additional_residuals,
                 )
+
             else:
                 sample, res_samples = downsample_block(hidden_states=sample, temb=emb)
                 if is_adapter and len(down_intrablock_additional_residuals) > 0:
                     sample += down_intrablock_additional_residuals.pop(0)
+                # iree_ops.trace_tensor("post_down_block_sample", sample[:,:,0,5])  ++ OK
+
 
             down_block_res_samples += res_samples
 
@@ -1258,6 +1264,7 @@ class UNet2DConditionModel(
             else:
                 sample = self.mid_block(sample, emb)
 
+
             # To support T2I-Adapter-XL
             if (
                 is_adapter
@@ -1265,7 +1272,6 @@ class UNet2DConditionModel(
                 and sample.shape == down_intrablock_additional_residuals[0].shape
             ):
                 sample += down_intrablock_additional_residuals.pop(0)
-
         if is_controlnet:
             sample = sample + mid_block_additional_residual
 
@@ -1299,7 +1305,6 @@ class UNet2DConditionModel(
                     res_hidden_states_tuple=res_samples,
                     upsample_size=upsample_size,
                 )
-
         # 6. post-process
         if self.conv_norm_out:
             sample = self.conv_norm_out(sample)
