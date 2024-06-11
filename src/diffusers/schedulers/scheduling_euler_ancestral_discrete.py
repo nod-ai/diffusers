@@ -436,7 +436,7 @@ class EulerAncestralDiscreteScheduler(SchedulerMixin, ConfigMixin):
         device = model_output.device
         noise = randn_tensor(model_output.shape, dtype=model_output.dtype, device=device, generator=generator)
         noisecl = noise.clone()
-        trace_tensor("noise", noisecl[0,0])
+        #trace_tensor("noise", noisecl[0,0])
         prev_sample = prev_sample + noisecl * sigma_up
 
         # Cast sample back to model compatible dtype
