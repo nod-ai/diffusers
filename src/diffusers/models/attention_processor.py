@@ -25,6 +25,7 @@ from ..utils import deprecate, logging
 from ..utils.import_utils import is_torch_npu_available, is_xformers_available
 from ..utils.torch_utils import maybe_allow_in_graph
 from .lora import LoRALinearLayer
+from shark_turbine.ops.iree import trace_tensor
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -816,6 +817,8 @@ class AttnProcessor:
         value = attn.head_to_batch_dim(value)
 
         attention_probs = attn.get_attention_scores(query, key, attention_mask)
+        
+
         hidden_states = torch.bmm(attention_probs, value)
         hidden_states = attn.batch_to_head_dim(hidden_states)
 
@@ -922,6 +925,7 @@ class CustomDiffusionAttnProcessor(nn.Module):
         value = attn.head_to_batch_dim(value)
 
         attention_probs = attn.get_attention_scores(query, key, attention_mask)
+
         hidden_states = torch.bmm(attention_probs, value)
         hidden_states = attn.batch_to_head_dim(hidden_states)
 
@@ -1131,10 +1135,14 @@ class JointAttnProcessor2_0:
         query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-
+        # trace_tensor("query", query[0,0,0])
+        # trace_tensor("key", key[0,0,0])
+        # trace_tensor("value", value[0,0,0])
         hidden_states = hidden_states = F.scaled_dot_product_attention(
             query, key, value, dropout_p=0.0, is_causal=False
         )
+        trace_tensor("attn_out", hidden_states[0,0,0,0])
+
         hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
         hidden_states = hidden_states.to(query.dtype)
 
@@ -1143,9 +1151,10 @@ class JointAttnProcessor2_0:
             hidden_states[:, : residual.shape[1]],
             hidden_states[:, residual.shape[1] :],
         )
-
+        hidden_states_cl = hidden_states.clone()
+        trace_tensor("attn_out", hidden_states_cl[0,0,0])
         # linear proj
-        hidden_states = attn.to_out[0](hidden_states)
+        hidden_states = attn.to_out[0](hidden_states_cl)
         # dropout
         hidden_states = attn.to_out[1](hidden_states)
         if not attn.context_pre_only:
@@ -1212,10 +1221,14 @@ class FusedJointAttnProcessor2_0:
         query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-
+        trace_tensor("query", query)
+        trace_tensor("key", key)
+        trace_tensor("value", value)
         hidden_states = hidden_states = F.scaled_dot_product_attention(
             query, key, value, dropout_p=0.0, is_causal=False
         )
+        trace_tensor("attn_out", hidden_states[:,:,:50])
+
         hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
         hidden_states = hidden_states.to(query.dtype)
 
@@ -1584,7 +1597,10 @@ class AttnProcessor2_0:
         hidden_states = F.scaled_dot_product_attention(
             query, key, value, attn_mask=attention_mask, dropout_p=0.0, is_causal=False
         )
-
+        trace_tensor("query", query)
+        trace_tensor("key", key)
+        trace_tensor("value", value)
+        trace_tensor("attn_out", hidden_states[:,:,:50])
         hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
         hidden_states = hidden_states.to(query.dtype)
 
@@ -1778,6 +1794,7 @@ class FusedAttnProcessor2_0:
         key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
 
+       
         # the output of sdp = (batch, num_heads, seq_len, head_dim)
         # TODO: add support for attn.scale when we move to Torch 2.1
         hidden_states = F.scaled_dot_product_attention(
