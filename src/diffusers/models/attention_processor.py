@@ -1152,7 +1152,7 @@ class JointAttnProcessor2_0:
             hidden_states[:, residual.shape[1] :],
         )
         hidden_states_cl = hidden_states.clone()
-        #trace_tensor("attn_out", hidden_states_cl[0,0,0])
+        trace_tensor("attn_out", hidden_states_cl[0,0,0])
         # linear proj
         hidden_states = attn.to_out[0](hidden_states_cl)
         # dropout
