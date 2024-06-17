@@ -1029,19 +1029,8 @@ class JointAttnProcessor2_0:
         query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-<<<<<<< HEAD
 
         hidden_states = F.scaled_dot_product_attention(query, key, value, dropout_p=0.0, is_causal=False)
-=======
-        # trace_tensor("query", query[0,0,0])
-        # trace_tensor("key", key[0,0,0])
-        # trace_tensor("value", value[0,0,0])
-        hidden_states = hidden_states = F.scaled_dot_product_attention(
-            query, key, value, dropout_p=0.0, is_causal=False
-        )
-        #trace_tensor("attn_out", hidden_states[0,0,0,0])
-
->>>>>>> ea85c86bc (SD3 bringup)
         hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
         hidden_states = hidden_states.to(query.dtype)
 
@@ -1051,7 +1040,6 @@ class JointAttnProcessor2_0:
             hidden_states[:, residual.shape[1] :],
         )
         hidden_states_cl = hidden_states.clone()
-        #trace_tensor("attn_out", hidden_states_cl[0,0,0])
         # linear proj
         hidden_states = attn.to_out[0](hidden_states_cl)
         # dropout

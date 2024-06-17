@@ -813,7 +813,8 @@ class StableDiffusion3Pipeline(DiffusionPipeline, SD3LoraLoaderMixin, FromSingle
         if self.do_classifier_free_guidance:
             prompt_embeds = torch.cat([negative_prompt_embeds, prompt_embeds], dim=0)
             pooled_prompt_embeds = torch.cat([negative_pooled_prompt_embeds, pooled_prompt_embeds], dim=0)
-
+        print("prompt_embeds", prompt_embeds)
+        print("pooled_prompt_embeds", pooled_prompt_embeds)
         # 4. Prepare timesteps
         timesteps, num_inference_steps = retrieve_timesteps(self.scheduler, num_inference_steps, device, timesteps)
         num_warmup_steps = max(len(timesteps) - num_inference_steps * self.scheduler.order, 0)
@@ -831,6 +832,8 @@ class StableDiffusion3Pipeline(DiffusionPipeline, SD3LoraLoaderMixin, FromSingle
             generator,
             latents,
         )
+        print(latents)
+        print(timesteps)
 
         # 6. Denoising loop
         with self.progress_bar(total=num_inference_steps) as progress_bar:
