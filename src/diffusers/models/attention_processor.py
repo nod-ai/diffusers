@@ -19,13 +19,14 @@ from typing import Callable, List, Optional, Union
 import torch
 import torch.nn.functional as F
 from torch import nn
+import numpy as np
 
 from ..image_processor import IPAdapterMaskProcessor
 from ..utils import deprecate, logging
 from ..utils.import_utils import is_torch_npu_available, is_xformers_available
 from ..utils.torch_utils import maybe_allow_in_graph
 from .lora import LoRALinearLayer
-from shark_turbine.ops.iree import trace_tensor
+#from shark_turbine.ops.iree import trace_tensor
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -1116,10 +1117,13 @@ class JointAttnProcessor2_0:
         batch_size = encoder_hidden_states.shape[0]
 
         # `sample` projections.
+        #trace_tensor("hidden_states", hidden_states[0,0,0])
         query = attn.to_q(hidden_states)
         key = attn.to_k(hidden_states)
         value = attn.to_v(hidden_states)
-
+        #trace_tensor("query_pre_proj", query[0,0,0])
+        #trace_tensor("key_pre_proj", key[0,0,0])
+        #trace_tensor("value_pre_proj", value[0,0,0])
         # `context` projections.
         encoder_hidden_states_query_proj = attn.add_q_proj(encoder_hidden_states)
         encoder_hidden_states_key_proj = attn.add_k_proj(encoder_hidden_states)
@@ -1129,20 +1133,18 @@ class JointAttnProcessor2_0:
         query = torch.cat([query, encoder_hidden_states_query_proj], dim=1)
         key = torch.cat([key, encoder_hidden_states_key_proj], dim=1)
         value = torch.cat([value, encoder_hidden_states_value_proj], dim=1)
-
         inner_dim = key.shape[-1]
         head_dim = inner_dim // attn.heads
         query = query.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         key = key.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
         value = value.view(batch_size, -1, attn.heads, head_dim).transpose(1, 2)
-        # trace_tensor("query", query[0,0,0])
-        # trace_tensor("key", key[0,0,0])
-        # trace_tensor("value", value[0,0,0])
+        # np.save("q.npy", query.detach().cpu().numpy())
+        # np.save("k.npy", key.detach().cpu().numpy())
+        # np.save("v.npy", value.detach().cpu().numpy())
         hidden_states = hidden_states = F.scaled_dot_product_attention(
             query, key, value, dropout_p=0.0, is_causal=False
         )
         #trace_tensor("attn_out", hidden_states[0,0,0,0])
-
         hidden_states = hidden_states.transpose(1, 2).reshape(batch_size, -1, attn.heads * head_dim)
         hidden_states = hidden_states.to(query.dtype)
 
@@ -1152,7 +1154,7 @@ class JointAttnProcessor2_0:
             hidden_states[:, residual.shape[1] :],
         )
         hidden_states_cl = hidden_states.clone()
-        trace_tensor("attn_out", hidden_states_cl[0,0,0])
+        #trace_tensor("attn_out", hidden_states_cl[0,0,0])
         # linear proj
         hidden_states = attn.to_out[0](hidden_states_cl)
         # dropout
