@@ -35,7 +35,7 @@ from ..resnet import (
 )
 from ..transformers.dual_transformer_2d import DualTransformer2DModel
 from ..transformers.transformer_2d import Transformer2DModel
-import shark_turbine.ops.iree as iree_ops
+import iree.turbine.ops.iree as iree_ops
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name

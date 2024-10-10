@@ -26,7 +26,7 @@ from ..utils import deprecate, logging
 from ..utils.import_utils import is_torch_npu_available, is_xformers_available
 from ..utils.torch_utils import maybe_allow_in_graph
 from .lora import LoRALinearLayer
-#from shark_turbine.ops.iree import trace_tensor
+#from iree.turbine.ops.iree import trace_tensor
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name

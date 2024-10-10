@@ -22,7 +22,7 @@ import torch
 
 from ..configuration_utils import ConfigMixin, register_to_config
 from .scheduling_utils import KarrasDiffusionSchedulers, SchedulerMixin, SchedulerOutput
-#from shark_turbine.ops.iree import trace_tensor
+#from iree.turbine.ops.iree import trace_tensor
 
 # Copied from diffusers.schedulers.scheduling_ddpm.betas_for_alpha_bar
 def betas_for_alpha_bar(
