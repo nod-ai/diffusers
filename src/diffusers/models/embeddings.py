@@ -23,8 +23,6 @@ from ..utils import deprecate
 from .activations import FP32SiLU, get_activation
 from .attention_processor import Attention
 
-from iree.turbine.ops.iree import trace_tensor
-
 
 def get_timestep_embedding(
     timesteps: torch.Tensor,
