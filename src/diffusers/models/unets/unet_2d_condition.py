@@ -49,7 +49,6 @@ from .unet_2d_blocks import (
     get_mid_block,
     get_up_block,
 )
-import iree.turbine.ops.iree as iree_ops
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
